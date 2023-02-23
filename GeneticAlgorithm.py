@@ -52,7 +52,7 @@ class GeneticAlgorithm:
         return candidate2
 
     def biasedWheelSelection(self):
-        weights = [1 / member.fitness for member in self.population]
+        weights = [member.fitness for member in self.population]
         totalWeights = sum(weights)
         probabilities = [w / totalWeights for w in weights]
         return np.random.choice(self.population, 1, probabilities)[0]
