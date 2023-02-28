@@ -1,19 +1,24 @@
 import numpy as np
 import random
+import cv2
 
 
 class Genome:
     def getRandomTraits():
-        return random.random()
+        return (random.randint(0, GeneticAlgorithm.COLS-1),
+                random.randint(0, GeneticAlgorithm.ROWS-1),
+                random.randint(
+                    0, (min(GeneticAlgorithm.ROWS, GeneticAlgorithm.COLS)-1)//2)
+                )
 
     def mutateGenome(genome):
         if (random.random() < GeneticAlgorithm.MUTATION_RATE):
-            return Genome.getRandomTraits()
+            return Genome(tuple([max(1, trait + random.randint(-GeneticAlgorithm.MUTATION_RADIUS, GeneticAlgorithm.MUTATION_RADIUS)) for trait in genome.traits]))
 
         return genome
 
-    def __init__(self):
-        self.traits = Genome.getRandomTraits()
+    def __init__(self, traits=None):
+        self.traits = traits if traits != None else Genome.getRandomTraits()
 
 
 class Individual:
@@ -23,18 +28,59 @@ class Individual:
         self.fitness = GeneticAlgorithm.getFitness(self)
 
     def cross_breed(A, B):
-        return Individual(genome=A.genome), Individual(genome=B.genome)
+        newTraits = tuple([A.genome.traits[i] if random.random(
+        ) < 0.5 else B.genome.traits[i] for i, _ in enumerate(A.genome.traits)])
+        newGenome = Genome(newTraits)
+        child1 = Individual(genome=newGenome)
+
+        newTraits = tuple([A.genome.traits[i] if random.random(
+        ) < 0.5 else B.genome.traits[i] for i, _ in enumerate(A.genome.traits)])
+        newGenome = Genome(newTraits)
+        child2 = Individual(genome=newGenome)
+
+        return child1, child2
 
 
 class GeneticAlgorithm:
     POP_SIZE = 10
-    MAX_GENERATIONS = 100
+    MAX_GENERATIONS = 20
     MUTATION_RATE = 0.1
+
+    MUTATION_RADIUS = 20
 
     TOURNAMENT_WHEEL_PROB = 0.5  # 0 - always wheel, 1 - always Tournament
 
-    def getFitness(individual: Individual):
-        return random.random()
+    canvas = []
+
+    COLS, ROWS = 0, 0
+
+    def getFitness(individual: Individual, draw=False, overide=False):
+        newCanvas = GeneticAlgorithm.canvas.copy()
+
+        cx, cy, radius = individual.genome.traits
+
+        ul_corner_x, br_corner_x = max(
+            cx - radius, 0), min(cx + radius, GeneticAlgorithm.COLS - 1)
+        ul_corner_y, br_corner_y = max(
+            cy - radius, 0), min(cy + radius, GeneticAlgorithm.ROWS - 1)
+
+        # Get Avg Color
+        avgColor = GeneticAlgorithm.source[ul_corner_y: br_corner_y, ul_corner_x: br_corner_x].mean(
+            axis=0).mean(axis=0).astype(np.uint8).tolist()
+
+        newCanvas = cv2.rectangle(
+            newCanvas, (ul_corner_x, ul_corner_y), (br_corner_x, br_corner_y), tuple(avgColor), -1)
+
+        if draw:
+            cv2.imshow("newCanvas", newCanvas)
+            cv2.waitKey(1)
+
+        if overide:
+            GeneticAlgorithm.canvas = newCanvas.copy()
+
+        diff = cv2.subtract(GeneticAlgorithm.source / 255, newCanvas / 255)
+
+        return 1/np.sum(np.square(diff))
 
     def exitCondition(self, gen):
         return gen < self.MAX_GENERATIONS
@@ -86,22 +132,37 @@ class GeneticAlgorithm:
 
         self.fittest = self.population[0]
 
-    def __init__(self):
-        # Instantiate Population
-        self.population = [Individual()
-                           for i in range(GeneticAlgorithm.POP_SIZE)]
+    def __init__(self, sourceImage):
+        GeneticAlgorithm.ROWS, GeneticAlgorithm.COLS, _ = sourceImage.shape
+        GeneticAlgorithm.canvas = np.zeros(sourceImage.shape, np.uint8)
+        GeneticAlgorithm.source = sourceImage
 
-        self.gen = 0
+        self.move = 0
+        while 1:
+            self.gen = 0
 
-        while self.exitCondition(self.gen):
-            # Train Loop
-            self.trainLoop()
+            # Instantiate Population
+            self.population = [Individual()
+                               for i in range(GeneticAlgorithm.POP_SIZE)]
 
-            print(self.fittest.fitness)
+            while self.exitCondition(self.gen):
+                # Train Loop
+                self.trainLoop()
 
-            self.gen += 1
+                GeneticAlgorithm.getFitness(self.fittest, True)
+                print(
+                    f'{self.move} - {self.gen}/{GeneticAlgorithm.MAX_GENERATIONS} - {self.fittest.fitness} - {self.fittest.genome.traits} - {len(self.population)}')
 
-        pass
+                self.gen += 1
+
+            GeneticAlgorithm.getFitness(self.fittest, True, True)
+
+            self.move += 1
 
 
-ga = GeneticAlgorithm()
+sourceImage = cv2.imread('./source.jpg')
+sourceImage = cv2.resize(sourceImage, (300, 300))
+
+cv2.imshow("Source", sourceImage)
+
+ga = GeneticAlgorithm(sourceImage)
