@@ -2,25 +2,20 @@ import numpy as np
 import random
 
 
-class Genome:
-    def getRandomTraits():
+class Individual:
+    def __init__(self, genome=None):
+        self.genome = Individual.mutateGenome(
+            genome) if genome != None else Individual.getRandomGenome()
+        self.fitness = GeneticAlgorithm.getFitness(self)
+
+    def getRandomGenome():
         return random.random()
 
     def mutateGenome(genome):
         if (random.random() < GeneticAlgorithm.MUTATION_RATE):
-            return Genome.getRandomTraits()
+            return Individual.getRandomGenome()
 
         return genome
-
-    def __init__(self):
-        self.traits = Genome.getRandomTraits()
-
-
-class Individual:
-    def __init__(self, genome=None):
-        self.genome = Genome.mutateGenome(
-            genome) if genome != None else Genome()
-        self.fitness = GeneticAlgorithm.getFitness(self)
 
     def cross_breed(A, B):
         return Individual(genome=A.genome), Individual(genome=B.genome)
