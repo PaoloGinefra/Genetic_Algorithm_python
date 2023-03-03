@@ -92,7 +92,7 @@ class GeneticAlgorithm:
             # Train Loop
             self.trainLoop()
 
-            print(self.fittest.fitness)
+            print(f'{self.gen} - {self.fittest.fitness}')
 
             self.gen += 1
 
