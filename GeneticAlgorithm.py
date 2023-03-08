@@ -1,5 +1,6 @@
 import numpy as np
 import random
+import threading
 
 
 class Individual:
@@ -23,24 +24,24 @@ class Individual:
         return genome
 
     def cross_breed(A, B):
-        return Individual(genome=A.genome), Individual(genome=B.genome)
+        return Individual(genome=random.choice((A, B)).genome)
 
     def __eq__(self, other):
-        return self.genome == other.genome
+        return self.id == other.id
 
     def __str__(self) -> str:
         return f'{self.id}: {self.fitness:.2f} - {self.genome}'
 
 
 class GeneticAlgorithm:
-    POP_SIZE = 10
-    MAX_GENERATIONS = 100
+    POP_SIZE = 1000
+    MAX_GENERATIONS = 1
     MUTATION_RATE = 0.1
 
     TOURNAMENT_WHEEL_PROB = 0.5  # 0 - always wheel, 1 - always Tournament
 
     def getFitness(individual: Individual):
-        return random.random()
+        return individual.genome
 
     def exitCondition(self, gen):
         return gen < self.MAX_GENERATIONS
@@ -88,19 +89,21 @@ class GeneticAlgorithm:
 
         self.updateBiesedWheelParameters()
 
-        # Breeding
-        for i in range(GeneticAlgorithm.POP_SIZE // 2):
-            parent1, parent2 = self.chooseParent(), self.chooseParent()
+        def breed():
+            newPopulation.append(Individual.cross_breed(
+                self.chooseParent(), self.chooseParent()))
 
-            while (parent1 == parent2):
-                parent2 = self.chooseParent()
+        # multithreading breeding
+        threads = [threading.Thread(target=breed)
+                   for i in range(GeneticAlgorithm.POP_SIZE)]
 
-            child1, child2 = Individual.cross_breed(
-                parent1, parent2)
+        for thread in threads:
+            thread.start()
 
-            newPopulation.append(child1)
-            newPopulation.append(child2)
+        for thread in threads:
+            thread.join()
 
+        # Add new population to old population
         self.population = self.population + newPopulation
 
         # Sort Population
@@ -114,10 +117,19 @@ class GeneticAlgorithm:
 
         self.logStatistics()
 
+    def initializePopulation(self):
+        self.population = []
+        threads = [threading.Thread(target=self.population.append, args=(
+            Individual(),)) for i in range(GeneticAlgorithm.POP_SIZE)]
+        for thread in threads:
+            thread.start()
+
+        for thread in threads:
+            thread.join()
+
     def __init__(self):
         # Instantiate Population
-        self.population = [Individual()
-                           for i in range(GeneticAlgorithm.POP_SIZE)]
+        self.initializePopulation()
 
         self.gen = 0
 
@@ -130,4 +142,5 @@ class GeneticAlgorithm:
         pass
 
 
-ga = GeneticAlgorithm()
+if __name__ == "__main__":
+    ga = GeneticAlgorithm()
