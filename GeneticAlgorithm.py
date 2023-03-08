@@ -35,7 +35,7 @@ class Individual:
 
 class GeneticAlgorithm:
     POP_SIZE = 1000
-    MAX_GENERATIONS = 5
+    MAX_GENERATIONS = 100
     MUTATION_RATE = 0.1
 
     TOURNAMENT_WHEEL_PROB = 0.5  # 0 - always wheel, 1 - always Tournament
@@ -63,10 +63,8 @@ class GeneticAlgorithm:
         return np.array([[elements[j] for j in i]for i in indices])
 
     def tournamentSelection(self):
-        candidate1 = GeneticAlgorithm.multidimensional_shifting(
-            1, 1, self.population, self.UNIFORM_PROBS)[0][0]
-        candidate2 = GeneticAlgorithm.multidimensional_shifting(
-            1, 1, self.population, self.UNIFORM_PROBS)[0][0]
+        candidate1, candidate2 = GeneticAlgorithm.multidimensional_shifting(
+            2, 1, self.population, self.UNIFORM_PROBS).T[0]
 
         while (candidate1 == candidate2):
             candidate2 = GeneticAlgorithm.multidimensional_shifting(
