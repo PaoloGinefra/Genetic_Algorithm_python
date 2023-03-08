@@ -35,10 +35,12 @@ class Individual:
 
 class GeneticAlgorithm:
     POP_SIZE = 1000
-    MAX_GENERATIONS = 1
+    MAX_GENERATIONS = 5
     MUTATION_RATE = 0.1
 
     TOURNAMENT_WHEEL_PROB = 0.5  # 0 - always wheel, 1 - always Tournament
+
+    N_THREADS = 4
 
     def getFitness(individual: Individual):
         return individual.genome
@@ -46,12 +48,29 @@ class GeneticAlgorithm:
     def exitCondition(self, gen):
         return gen < self.MAX_GENERATIONS
 
+    def multidimensional_shifting(num_samples, sample_size, elements, probabilities):
+        # replicate probabilities as many times as `num_samples`
+        replicated_probabilities = np.tile(probabilities, (num_samples, 1))
+        # get random shifting numbers & scale them correctly
+        random_shifts = np.random.random(replicated_probabilities.shape)
+        random_shifts /= random_shifts.sum(axis=1)[:, np.newaxis]
+        # shift by numbers & find largest (by finding the smallest of the negative)
+        shifted_probabilities = random_shifts - replicated_probabilities
+        indices = np.argpartition(shifted_probabilities, sample_size, axis=1)[
+            :, :sample_size]
+
+        # get the elements
+        return np.array([[elements[j] for j in i]for i in indices])
+
     def tournamentSelection(self):
-        candidate1 = np.random.choice(self.population, 1)[0]
-        candidate2 = np.random.choice(self.population, 1)[0]
+        candidate1 = GeneticAlgorithm.multidimensional_shifting(
+            1, 1, self.population, self.UNIFORM_PROBS)[0][0]
+        candidate2 = GeneticAlgorithm.multidimensional_shifting(
+            1, 1, self.population, self.UNIFORM_PROBS)[0][0]
 
         while (candidate1 == candidate2):
-            candidate2 = np.random.choice(self.population, 1)[0]
+            candidate2 = GeneticAlgorithm.multidimensional_shifting(
+                1, 1, self.population, self.UNIFORM_PROBS)[0][0]
 
         if (candidate1.fitness > candidate2.fitness):
             return candidate1
@@ -64,7 +83,7 @@ class GeneticAlgorithm:
         self.probabilities = [w / self.totalWeights for w in weights]
 
     def biasedWheelSelection(self):
-        return np.random.choice(self.population, 1, self.probabilities)[0]
+        return GeneticAlgorithm.multidimensional_shifting(1, 1, self.population, self.probabilities)[0][0]
 
     def chooseParent(self):
         if (random.random() < GeneticAlgorithm.TOURNAMENT_WHEEL_PROB):
@@ -89,19 +108,22 @@ class GeneticAlgorithm:
 
         self.updateBiesedWheelParameters()
 
-        def breed():
-            newPopulation.append(Individual.cross_breed(
-                self.chooseParent(), self.chooseParent()))
+        def breed(n):
+            for _ in range(n):
+                newPopulation.append(Individual.cross_breed(
+                    self.chooseParent(), self.chooseParent()))
 
         # multithreading breeding
-        threads = [threading.Thread(target=breed)
-                   for i in range(GeneticAlgorithm.POP_SIZE)]
+        # threads = [threading.Thread(target=breed, args=(
+        #     GeneticAlgorithm.POP_SIZE // GeneticAlgorithm.N_THREADS,)) for i in range(GeneticAlgorithm.N_THREADS)]
 
-        for thread in threads:
-            thread.start()
+        # for thread in threads:
+        #     thread.start()
 
-        for thread in threads:
-            thread.join()
+        # for thread in threads:
+        #     thread.join()
+
+        breed(GeneticAlgorithm.POP_SIZE)
 
         # Add new population to old population
         self.population = self.population + newPopulation
@@ -119,15 +141,27 @@ class GeneticAlgorithm:
 
     def initializePopulation(self):
         self.population = []
-        threads = [threading.Thread(target=self.population.append, args=(
-            Individual(),)) for i in range(GeneticAlgorithm.POP_SIZE)]
-        for thread in threads:
-            thread.start()
 
-        for thread in threads:
-            thread.join()
+        def addIndividual(n):
+            for _ in range(n):
+                self.population.append(Individual())
+
+        # multithreading population initialization
+        # threads = [threading.Thread(target=addIndividual, args=(
+        #     GeneticAlgorithm.POP_SIZE // GeneticAlgorithm.N_THREADS,)) for i in range(GeneticAlgorithm.N_THREADS)]
+
+        # for thread in threads:
+        #     thread.start()
+
+        # for thread in threads:
+        #     thread.join()
+
+        addIndividual(GeneticAlgorithm.POP_SIZE)
 
     def __init__(self):
+        self.UNIFORM_PROBS = [
+            1/GeneticAlgorithm.POP_SIZE for _ in range(GeneticAlgorithm.POP_SIZE)]
+
         # Instantiate Population
         self.initializePopulation()
 
@@ -143,4 +177,12 @@ class GeneticAlgorithm:
 
 
 if __name__ == "__main__":
-    ga = GeneticAlgorithm()
+    import cProfile
+    import pstats
+
+    cProfile.run('GeneticAlgorithm()', 'stats')
+    p = pstats.Stats('stats')
+    p.sort_stats('cumulative').print_stats(10)
+
+    # python -m snakeviz stats.prof --server  # for visualizing the stats
+    p.dump_stats('stats.prof')
